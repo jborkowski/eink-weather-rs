@@ -9,10 +9,11 @@
 use defmt::info;
 use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
-use esp_hal::clock::CpuClock;
 use esp_hal::timer::systimer::SystemTimer;
 use esp_hal::timer::timg::TimerGroup;
+use esp_hal::{clock::CpuClock, delay::Delay};
 use esp_println as _;
+use lilygo_epd47::{pin_config, Display, DrawMode};
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -48,11 +49,41 @@ async fn main(spawner: Spawner) {
 
     // TODO: Spawn some tasks
     let _ = spawner;
+    // Initialize display
+    //
+    esp_alloc::psram_allocator!(peripherals.PSRAM, esp_hal::psram);
+    let mut display = Display::new(
+        pin_config!(peripherals),
+        peripherals.DMA_CH0,
+        peripherals.LCD_CAM,
+        peripherals.RMT,
+    )
+    .expect("Failed to initialize display");
+
+    info!("Hello world0!");
+    // let delay = Delay::new();
+
+    // delay.delay_millis(100);
+    // display.power_on();
+    // delay.delay_millis(10);
+    // display.clear().unwrap();
+
+    // Draw test circle on the display
+    use embedded_graphics::pixelcolor::{Gray4, GrayColor};
+    use embedded_graphics::{
+        prelude::*,
+        primitives::{Circle, PrimitiveStyle},
+    };
+    Circle::new(display.bounding_box().center() - Point::new(100, 100), 200)
+        .into_styled(PrimitiveStyle::with_stroke(Gray4::BLACK, 3))
+        .draw(&mut display)
+        .unwrap();
+    display.flush(DrawMode::BlackOnWhite).unwrap();
+    display.power_off();
 
     loop {
         info!("Hello world!");
         Timer::after(Duration::from_secs(1)).await;
     }
-
     // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.0.0-beta.1/examples/src/bin
 }
