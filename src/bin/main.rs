@@ -16,7 +16,9 @@ use esp_println as _;
 use lilygo_epd47::{pin_config, Display, DrawMode};
 
 #[panic_handler]
-fn panic(_: &core::panic::PanicInfo) -> ! {
+fn panic(p: &core::panic::PanicInfo) -> ! {
+
+    info!("{:?}", p);
     loop {}
 }
 
@@ -34,6 +36,7 @@ async fn main(spawner: Spawner) {
     let peripherals = esp_hal::init(config);
 
     esp_alloc::heap_allocator!(size: 64 * 1024);
+    esp_alloc::psram_allocator!(peripherals.PSRAM, esp_hal::psram);
 
     let timer0 = SystemTimer::new(peripherals.SYSTIMER);
     esp_hal_embassy::init(timer0.alarm0);
@@ -51,7 +54,6 @@ async fn main(spawner: Spawner) {
     let _ = spawner;
     // Initialize display
     //
-    esp_alloc::psram_allocator!(peripherals.PSRAM, esp_hal::psram);
     let mut display = Display::new(
         pin_config!(peripherals),
         peripherals.DMA_CH0,
@@ -60,29 +62,34 @@ async fn main(spawner: Spawner) {
     )
     .expect("Failed to initialize display");
 
-    info!("Hello world0!");
-    // let delay = Delay::new();
+    let delay = Delay::new();
+    
+    display.power_on();
+    delay.delay_millis(10);
+    display.repair(delay).unwrap();
+    display.power_off();
 
+   
     // delay.delay_millis(100);
     // display.power_on();
     // delay.delay_millis(10);
     // display.clear().unwrap();
 
-    // Draw test circle on the display
-    use embedded_graphics::pixelcolor::{Gray4, GrayColor};
-    use embedded_graphics::{
-        prelude::*,
-        primitives::{Circle, PrimitiveStyle},
-    };
-    Circle::new(display.bounding_box().center() - Point::new(100, 100), 200)
-        .into_styled(PrimitiveStyle::with_stroke(Gray4::BLACK, 3))
-        .draw(&mut display)
-        .unwrap();
-    display.flush(DrawMode::BlackOnWhite).unwrap();
-    display.power_off();
+    // // Draw test circle on the display
+    // use embedded_graphics::pixelcolor::{Gray4, GrayColor};
+    // use embedded_graphics::{
+    //     prelude::*,
+    //     primitives::{Circle, PrimitiveStyle},
+    // };
+    // Circle::new(display.bounding_box().center() - Point::new(100, 100), 200)
+    //     .into_styled(PrimitiveStyle::with_stroke(Gray4::BLACK, 3))
+    //     .draw(&mut display)
+    //     .unwrap();
+    // display.flush(DrawMode::BlackOnWhite).unwrap();
+    // display.power_off();
 
     loop {
-        info!("Hello world!");
+        info!("Loop world!");
         Timer::after(Duration::from_secs(1)).await;
     }
     // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.0.0-beta.1/examples/src/bin
