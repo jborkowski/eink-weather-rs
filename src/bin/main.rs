@@ -17,7 +17,6 @@ use lilygo_epd47::{pin_config, Display, DrawMode};
 
 #[panic_handler]
 fn panic(p: &core::panic::PanicInfo) -> ! {
-
     info!("{:?}", p);
     loop {}
 }
@@ -52,6 +51,7 @@ async fn main(spawner: Spawner) {
 
     // TODO: Spawn some tasks
     let _ = spawner;
+
     // Initialize display
     //
     let mut display = Display::new(
@@ -62,14 +62,15 @@ async fn main(spawner: Spawner) {
     )
     .expect("Failed to initialize display");
 
+    info!("EDP47 initialized!");
+
     let delay = Delay::new();
-    
+
     display.power_on();
     delay.delay_millis(10);
     display.repair(delay).unwrap();
     display.power_off();
 
-   
     // delay.delay_millis(100);
     // display.power_on();
     // delay.delay_millis(10);
