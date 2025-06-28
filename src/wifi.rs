@@ -1,5 +1,5 @@
 use embassy_executor::Spawner;
-use embassy_net::{DhcpConfig, Stack, StackResources};
+use embassy_net::{DhcpConfig, Runner, Stack, StackResources};
 use embassy_time::{Duration, Timer};
 use esp_alloc as _;
 use esp_backtrace as _;
@@ -51,16 +51,16 @@ async fn connection_task(mut controller: WifiController<'static>) {
 }
 
 #[embassy_executor::task]
-async fn net_task(stack: &'static Stack<WifiDevice<'static, WifiStaDevice>>) {
-    stack.run().await
+async fn net_task(mut runner: Runner<'static, WifiDevice<'static, WifiStaDevice>>) {
+    runner.run().await
 }
 
 pub async fn start_wifi(
     esp_wifi_ctrl: &'static EspWifiController<'static>,
     wifi: esp_hal::peripherals::WIFI,
     mut rng: esp_hal::rng::Rng,
-    spawner: Spawner,
-) -> &Stack<WifiDevice<'static, WifiStaDevice>> {
+    spawner: &Spawner,
+) -> Stack<'static> {
     let (wifi_interface, controller) =
         esp_wifi::wifi::new_with_mode(&esp_wifi_ctrl, wifi, WifiStaDevice).unwrap();
     let net_seed = rng.random() as u64 | ((rng.random() as u64) << 32);
@@ -69,25 +69,55 @@ pub async fn start_wifi(
 
     let net_config = embassy_net::Config::dhcpv4(dhcp_config);
 
-    let stack = &*mk_static!(
-        Stack<WifiDevice<'_, WifiStaDevice>>,
-        Stack::new(
-            wifi_interface,
-            net_config,
-            mk_static!(StackResources<3>, StackResources::<3>::new()),
-            net_seed
-        )
+    // Init network stack
+    let (stack, runner) = embassy_net::new(
+        wifi_interface,
+        net_config,
+        mk_static!(StackResources<3>, StackResources::<3>::new()),
+        net_seed,
     );
 
     spawner.spawn(connection_task(controller)).ok();
-    spawner.spawn(net_task(stack)).ok();
+    spawner.spawn(net_task(runner)).ok();
 
     wait_for_connection(stack).await;
 
     stack
 }
 
-async fn wait_for_connection(stack: &'static Stack<WifiDevice<'static, WifiStaDevice>>) {
+// pub async fn start_wifi(
+//     esp_wifi_ctrl: &'static EspWifiController<'static>,
+//     wifi: esp_hal::peripherals::WIFI,
+//     mut rng: esp_hal::rng::Rng,
+//     spawner: Spawner,
+// ) -> &Stack<WifiDevice<'static, WifiStaDevice>> {
+//     let (wifi_interface, controller) =
+//         esp_wifi::wifi::new_with_mode(&esp_wifi_ctrl, wifi, WifiStaDevice).unwrap();
+//     let net_seed = rng.random() as u64 | ((rng.random() as u64) << 32);
+
+//     let dhcp_config = DhcpConfig::default();
+
+//     let net_config = embassy_net::Config::dhcpv4(dhcp_config);
+
+//     let stack = &*mk_static!(
+//         Stack<WifiDevice<'_, WifiStaDevice>>,
+//         Stack::new(
+//             wifi_interface,
+//             net_config,
+//             mk_static!(StackResources<3>, StackResources::<3>::new()),
+//             net_seed
+//         )
+//     );
+
+//     spawner.spawn(connection_task(controller)).ok();
+//     spawner.spawn(net_task(stack)).ok();
+
+//     wait_for_connection(stack).await;
+
+//     stack
+// }
+
+async fn wait_for_connection(stack: Stack<'_>) {
     println!("Waiting for link to be up");
     loop {
         if stack.is_link_up() {

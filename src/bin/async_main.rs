@@ -3,8 +3,13 @@
 
 use embedded_graphics::pixelcolor::Gray4;
 use esp_backtrace as _;
-use esp_eink_weather::mk_static;
-use esp_hal::{delay::Delay, prelude::*, timer::timg::TimerGroup};
+use esp_eink_weather::{mk_static, open_meteo::OpenMeteoApi};
+use esp_hal::{
+    delay::Delay,
+    peripheral::Peripheral,
+    peripherals::{RSA, SHA},
+    prelude::*,
+};
 use esp_wifi::EspWifiController;
 use lilygo_epd47::{pin_config, Display, DrawMode};
 use log::info;
@@ -22,7 +27,7 @@ async fn main(spawner: Spawner) {
         config
     });
 
-    esp_alloc::heap_allocator!(72 * 1024);
+    esp_alloc::heap_allocator!(3 * 72 * 1024);
 
     esp_println::logger::init_logger_from_env();
 
@@ -40,7 +45,7 @@ async fn main(spawner: Spawner) {
     let esp_wifi_ctrl = &*mk_static!(EspWifiController<'static>, wifi_init);
 
     let _wifi_stack =
-        esp_eink_weather::wifi::start_wifi(esp_wifi_ctrl, peripherals.WIFI, rng, spawner).await;
+        esp_eink_weather::wifi::start_wifi(esp_wifi_ctrl, peripherals.WIFI, rng, &spawner).await;
 
     // Create PSRAM allocator
     esp_alloc::psram_allocator!(peripherals.PSRAM, esp_hal::psram);
@@ -73,10 +78,25 @@ async fn main(spawner: Spawner) {
     display.flush(DrawMode::BlackOnWhite).unwrap();
     display.power_off();
 
+    spawner
+        .spawn(fetch_data(_wifi_stack, peripherals.RSA, peripherals.SHA))
+        .ok();
+
     loop {
         info!("Hello world!");
         Timer::after(Duration::from_secs(1)).await;
     }
 
     // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/v0.22.0/examples/src/bin
+}
+#[embassy_executor::task]
+
+async fn fetch_data(stack: embassy_net::Stack<'static>, rsa: RSA, sha: SHA) {
+    use esp_mbedtls::Tls;
+    let api = OpenMeteoApi::new(stack);
+
+    let tls = Tls::new(sha)
+        .expect("TLS::new with peripherals.SHA failed")
+        .with_hardware_rsa(rsa);
+    api.fetch_data(tls.reference()).await;
 }

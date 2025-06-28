@@ -1,5 +1,6 @@
 #![no_std]
 
+pub mod open_meteo;
 pub mod wifi;
 
 #[macro_export]
