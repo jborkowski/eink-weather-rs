@@ -9,9 +9,9 @@ This project uses the ESP Rust toolchain. To set up the required toolchain:
    cargo install espup
    ```
 
-2. Install the ESP toolchain version 1.79.0:
+2. Install the ESP toolchain version 1.82.0:
    ```bash
-   espup install --toolchain-version=1.79.0 --name esp-1.79
+   espup install --toolchain-version=1.72.0 --name esp-1.82
    ```
 
 3. Load the ESP environment variables in your current shell:
