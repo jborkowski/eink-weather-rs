@@ -3,7 +3,9 @@
 
 use embedded_graphics::pixelcolor::Gray4;
 use esp_backtrace as _;
-use esp_hal::{delay::Delay, prelude::*};
+use esp_eink_weather::mk_static;
+use esp_hal::{delay::Delay, prelude::*, timer::timg::TimerGroup};
+use esp_wifi::EspWifiController;
 use lilygo_epd47::{pin_config, Display, DrawMode};
 use log::info;
 
@@ -28,18 +30,17 @@ async fn main(spawner: Spawner) {
         .split::<esp_hal::timer::systimer::Target>();
     esp_hal_embassy::init(timer0.alarm0);
 
+    let _ = spawner;
     info!("Embassy initialized!");
 
+    // Initialize wifi
     let timer1 = esp_hal::timer::timg::TimerGroup::new(peripherals.TIMG0);
-    let _init = esp_wifi::init(
-        timer1.timer0,
-        esp_hal::rng::Rng::new(peripherals.RNG),
-        peripherals.RADIO_CLK,
-    )
-    .unwrap();
+    let rng = esp_hal::rng::Rng::new(peripherals.RNG);
+    let wifi_init = esp_wifi::init(timer1.timer0, rng, peripherals.RADIO_CLK).unwrap();
+    let esp_wifi_ctrl = &*mk_static!(EspWifiController<'static>, wifi_init);
 
-    // TODO: Spawn some tasks
-    let _ = spawner;
+    let _wifi_stack =
+        esp_eink_weather::wifi::start_wifi(esp_wifi_ctrl, peripherals.WIFI, rng, spawner).await;
 
     // Create PSRAM allocator
     esp_alloc::psram_allocator!(peripherals.PSRAM, esp_hal::psram);
